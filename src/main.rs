@@ -16,6 +16,9 @@ use esp_idf_svc::eventloop::EspSystemEventLoop;
 mod dht22;
 use dht22::Dht22;
 
+mod mh_z19;
+use mh_z19::MHz19;
+
 #[toml_cfg::toml_config]
 pub struct Config {
     #[default("")]
@@ -57,6 +60,8 @@ fn main() -> Result<()> {
         &config,
     )
     .unwrap();
+    let mut mhz19 = MHz19::new(uart);
+    mhz19.enable_auto_calibration(true)?;
 
     // sleep before talking to dht22 for first time
     sleep(Duration::from_millis(100));
@@ -99,17 +104,19 @@ fn main() -> Result<()> {
 
         // read co2 concentration
         // TODO: create library for sensor
-        uart.write(&[0xFF, 0x1, 0x86, 0, 0, 0, 0, 0, 0x79]).unwrap();
-        let mut response: [u8; 9] = [0; 9];
-        uart.read(&mut response, 500).unwrap();
-        let co2 = ((response[2] as i32) << 8) + response[3] as i32;
-        let co2_msg = format!("{{location: \"esp-bedroom\", co2: {:}}}", co2);
-        let publ_status =
-            client.publish("home/data/co2", QoS::AtLeastOnce, false, co2_msg.as_bytes());
-        match publ_status {
-            Ok(_) => {}
-            Err(err) => log::warn!("error publishing co2 data: {:}", err),
-        };
+        let co2_result = mhz19.read_co2();
+        match co2_result {
+            Ok(co2) => {
+                let co2_msg = format!("{{location: \"esp-bedroom\", co2: {:}}}", co2);
+                let publ_status =
+                    client.publish("home/data/co2", QoS::AtLeastOnce, false, co2_msg.as_bytes());
+                match publ_status {
+                    Ok(_) => {}
+                    Err(err) => log::warn!("error publishing CO2 data: {:}", err),
+                };
+            }
+            Err(err) => log::warn!("error reading CO2 data: {:}", err),
+        }
 
         // read temperature and humidity
         let hum_and_temp = dht22.read();
@@ -135,6 +142,6 @@ fn main() -> Result<()> {
             Err(err) => log::warn!("{}", err),
         }
 
-        sleep(Duration::from_millis(2500));
+        sleep(Duration::from_millis(5000));
     }
 }
