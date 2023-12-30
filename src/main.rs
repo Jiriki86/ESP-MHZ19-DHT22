@@ -1,8 +1,10 @@
 use anyhow::Result;
+use embedded_svc::mqtt::client::QoS;
 use esp_idf_svc::hal::delay::Delay;
 use esp_idf_svc::hal::{
     gpio::AnyIOPin, gpio::PinDriver, peripherals::Peripherals, prelude::*, uart,
 };
+use esp_idf_svc::mqtt::client::{EspMqttClient, MqttClientConfiguration};
 use std::{thread::sleep, time::Duration};
 
 use core::fmt;
@@ -155,6 +157,12 @@ pub struct Config {
     wifi_ssid: &'static str,
     #[default("")]
     wifi_psk: &'static str,
+    #[default("localhost")]
+    mqtt_host: &'static str,
+    #[default("")]
+    mqtt_user: &'static str,
+    #[default("")]
+    mqtt_pass: &'static str,
 }
 
 fn main() -> Result<()> {
@@ -205,7 +213,14 @@ fn main() -> Result<()> {
         sysloop,
     )?;
 
-    //TODO: create MQTT client and send data in loop
+    let broker_url = format!(
+        "mqtt://{}:{}@{}",
+        app_config.mqtt_user, app_config.mqtt_pass, app_config.mqtt_host
+    );
+    let mqtt_config = MqttClientConfiguration::default();
+    let mut client = EspMqttClient::new(&broker_url, &mqtt_config, move |_message_event| {
+        // left empty on purpose
+    })?;
 
     loop {
         let wifi_connected = wifi.is_connected();
@@ -221,14 +236,33 @@ fn main() -> Result<()> {
         let mut response: [u8; 9] = [0; 9];
         uart.read(&mut response, 500).unwrap();
         let co2 = ((response[2] as i32) << 8) + response[3] as i32;
+        let co2_msg = format!("{{location: \"esp-bedroom\", co2: {:}}}", co2);
+        let publ_status =
+            client.publish("home/data/co2", QoS::AtLeastOnce, false, co2_msg.as_bytes());
+        match publ_status {
+            Ok(_) => {}
+            Err(err) => log::warn!("error publishing co2 data: {:}", err),
+        };
         let hum_and_temp = dht22.read();
         match hum_and_temp {
-            Ok(val) => log::info!(
-                "Temp: {:}, Hum: {:}, CO2: {:}",
-                val.temperature(),
-                val.humidity(),
-                co2
-            ),
+            Ok(val) => {
+                let ambient_data_msg = format!(
+                    "{{temperate: {:}, humidity: {:}, pressure: {:}, location: \"esp-bedroom\"}}",
+                    val.temperature(),
+                    val.humidity(),
+                    0
+                );
+                let publ_status = client.publish(
+                    "home/data/climate",
+                    QoS::AtLeastOnce,
+                    false,
+                    ambient_data_msg.as_bytes(),
+                );
+                match publ_status {
+                    Ok(_) => {}
+                    Err(err) => log::warn!("error publishing climate data: {:}", err),
+                };
+            }
             Err(err) => log::warn!("{}", err),
         }
 
