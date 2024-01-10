@@ -93,6 +93,7 @@ fn main() -> Result<()> {
     })?;
 
     loop {
+        println!("Reading data");
         let wifi_connected = wifi.is_connected();
         match wifi_connected {
             Ok(conn) => {
@@ -107,7 +108,7 @@ fn main() -> Result<()> {
         let co2_result = mhz19.read_co2();
         match co2_result {
             Ok(co2) => {
-                let co2_msg = format!("{{location: \"esp-bedroom\", co2: {:}}}", co2);
+                let co2_msg = format!("{{\"location\": \"esp-bedroom\", \"co2\": {:}}}", co2);
                 let publ_status =
                     client.publish("home/data/co2", QoS::AtLeastOnce, false, co2_msg.as_bytes());
                 match publ_status {
@@ -123,7 +124,7 @@ fn main() -> Result<()> {
         match hum_and_temp {
             Ok(val) => {
                 let ambient_data_msg = format!(
-                    "{{temperate: {:}, humidity: {:}, pressure: {:}, location: \"esp-bedroom\"}}",
+                    "{{\"temperature\": {:}, \"humidity\": {:}, \"pressure\": {:}, \"location\": \"esp-bedroom\"}}",
                     val.temperature(),
                     val.humidity(),
                     0
@@ -142,6 +143,6 @@ fn main() -> Result<()> {
             Err(err) => log::warn!("{}", err),
         }
 
-        sleep(Duration::from_millis(5000));
+        sleep(Duration::from_millis(5 * 60 * 1000));
     }
 }
