@@ -79,20 +79,21 @@ impl<HE, D: DelayUs, P: InputPin<Error = HE> + OutputPin<Error = HE>> Dht22<HE, 
     pub fn read(&mut self) -> Result<ReadoutData, DhtError<HE>> {
         // wake up dht22
         self.pin.set_low()?;
-        self.delay.delay_us(3000);
+        self.delay.delay_us(18000);
         // ask for data
         self.pin.set_high()?;
-        self.delay.delay_us(25);
+        // self.delay.delay_us(30);
 
         // wait for dht to signal that data is ready
-        self.wait_for_state(PinState::High, 85, DhtError::NotFoundOnGPio)?;
-        self.wait_for_state(PinState::Low, 85, DhtError::NotFoundOnGPio)?;
+        self.wait_for_state(PinState::Low, 40, DhtError::NotFoundOnGPio)?;
+        self.wait_for_state(PinState::High, 80, DhtError::NotFoundOnGPio)?;
+        self.wait_for_state(PinState::Low, 80, DhtError::NotFoundOnGPio)?;
 
         // read the 40 data bits
         let mut buf: [u8; 5] = [0; 5];
         for bit in 0..40 {
             // wait for next high state
-            self.wait_for_state(PinState::High, 55, DhtError::ReadTimeout)?;
+            self.wait_for_state(PinState::High, 50, DhtError::ReadTimeout)?;
             // check how long it takes to go low again
             let elapsed = self.wait_for_state(PinState::Low, 70, DhtError::ReadTimeout)?;
             // a logical '1' will take more than 30us to go low again

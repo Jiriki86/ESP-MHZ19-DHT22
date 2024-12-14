@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use embedded_svc::wifi::{AuthMethod, ClientConfiguration, Configuration};
 use esp_idf_hal::peripheral;
 use esp_idf_svc::{eventloop::EspSystemEventLoop, wifi::BlockingWifi, wifi::EspWifi};
-use log::info;
+use log::{info, warn};
 
 pub fn wifi(
     ssid: &str,
@@ -33,7 +33,10 @@ pub fn wifi(
     wifi.start()?;
 
     info!("Connecting wifi...");
-    wifi.connect()?;
+    while let Err(e) = wifi.connect() {
+        warn!("Could not connect to wifi {}", e);
+        info!("Retrying!");
+    }
 
     info!("Waiting for DHCP lease...");
     wifi.wait_netif_up()?;

@@ -92,6 +92,9 @@ fn main() -> Result<()> {
         // left empty on purpose
     })?;
 
+    // first value is usually broken
+    let _ = mhz19.read_co2();
+
     loop {
         println!("Reading data");
         let wifi_connected = wifi.is_connected();
@@ -104,7 +107,6 @@ fn main() -> Result<()> {
         }
 
         // read co2 concentration
-        // TODO: create library for sensor
         let co2_result = mhz19.read_co2();
         match co2_result {
             Ok(co2) => {
